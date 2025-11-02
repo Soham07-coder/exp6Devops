@@ -4,11 +4,12 @@ pipeline {
     environment {
         // --- 🚨 Configuration Variables (Update these!) -----------------------
         DOCKERHUB_CREDENTIAL_ID = 'dockerhub-credentials'
-        // Ensure you have updated 'soham008' if your Docker Hub username is different
+        // 🚨 IMPORTANT: Replace <your_credential> with your actual Docker Hub username
         USER_REPO = 'soham008/user-service' 
         ORDER_REPO = 'soham008/order-service'
         
-        USER_PORT = '8081'
+        // Host ports for external access (remain 8081 and 8082)
+        USER_PORT = '8081' 
         ORDER_PORT = '8082'
         // ----------------------------------------------------------------------
     }
@@ -22,25 +23,20 @@ pipeline {
         }
 
         // =======================================================================
-        // USER SERVICE PIPELINE
+        // BUILD STAGES (Assuming Dockerfiles are updated with EXPOSE 3001/3002 and npm install)
         // =======================================================================
         stage('2. Build User Service Image') {
             steps {
                 echo "Building ${USER_REPO} image with tag: ${env.BUILD_NUMBER}"
-                // FIX: Changed sh to bat for Windows compatibility
                 bat "docker build -t ${USER_REPO}:${env.BUILD_NUMBER} ./user-service"
                 bat "docker tag ${USER_REPO}:${env.BUILD_NUMBER} ${USER_REPO}:latest"
                 echo "User Service Image Build Complete."
             }
         }
         
-        // =======================================================================
-        // ORDER SERVICE PIPELINE
-        // =======================================================================
         stage('3. Build Order Service Image') {
             steps {
                 echo "Building ${ORDER_REPO} image with tag: ${env.BUILD_NUMBER}"
-                // FIX: Changed sh to bat for Windows compatibility
                 bat "docker build -t ${ORDER_REPO}:${env.BUILD_NUMBER} ./order-service"
                 bat "docker tag ${ORDER_REPO}:${env.BUILD_NUMBER} ${ORDER_REPO}:latest"
                 echo "Order Service Image Build Complete."
@@ -58,16 +54,13 @@ pipeline {
                     usernameVariable: 'DOCKER_USER',
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
-                    // FIX: Replaced sh with bat. We use a single multiline bat command for the login.
                     bat '''
                         echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin
                     '''
 
-                    // Push User Service (FIX: Changed sh to bat)
                     bat "docker push ${USER_REPO}:${env.BUILD_NUMBER}"
                     bat "docker push ${USER_REPO}:latest"
                     
-                    // Push Order Service (FIX: Changed sh to bat)
                     bat "docker push ${ORDER_REPO}:${env.BUILD_NUMBER}"
                     bat "docker push ${ORDER_REPO}:latest"
                     
@@ -77,68 +70,54 @@ pipeline {
         }
         
         // =======================================================================
-        // DEPLOYMENT
+        // DEPLOYMENT (FIXED CONTAINER PORTS)
         // =======================================================================
         stage('5. Deploy Containers') {
             steps {
                 echo 'Deploying containers to target environment (Jenkins Host)...'
                 
-                // FIX: Use script block with try/catch to safely ignore cleanup errors on Windows
                 script {
                     echo 'Attempting to clean up old containers...'
-                    
-                    // Cleanup User Service
-                    try {
-                        bat 'docker stop user-app'
-                        bat 'docker rm user-app'
-                    } catch (Exception ignored) {
-                        echo 'User service container not found, continuing...'
-                    }
-                    
-                    // Cleanup Order Service
-                    try {
-                        bat 'docker stop order-app'
-                        bat 'docker rm order-app'
-                    } catch (Exception ignored) {
-                        echo 'Order service container not found, continuing...'
-                    }
+                    try { bat 'docker stop user-app'; bat 'docker rm user-app' } catch (Exception ignored) { echo 'User service container not found, continuing...'}
+                    try { bat 'docker stop order-app'; bat 'docker rm order-app' } catch (Exception ignored) { echo 'Order service container not found, continuing...'}
                 }
                 
-                // 1. Deploy User Service
-                bat "docker run -d --name user-app -p ${USER_PORT}:8081 ${USER_REPO}:${env.BUILD_NUMBER}"
+                // 1. Deploy User Service: Maps Host Port 8081 -> Container Port 3001 (FIXED)
+                bat "docker run -d --name user-app -p ${USER_PORT}:3001 ${USER_REPO}:${env.BUILD_NUMBER}"
                 echo "User Service deployed and running on host port ${USER_PORT}"
                 
-                // 2. Deploy Order Service
-                bat "docker run -d --name order-app -p ${ORDER_PORT}:8082 ${ORDER_REPO}:${env.BUILD_NUMBER}"
+                // 2. Deploy Order Service: Maps Host Port 8082 -> Container Port 3002 (FIXED)
+                bat "docker run -d --name order-app -p ${ORDER_PORT}:3002 ${ORDER_REPO}:${env.BUILD_NUMBER}"
                 echo "Order Service deployed and running on host port ${ORDER_PORT}"
             }
         }
+        
         // =======================================================================
-        // VERIFICATION
+        // VERIFICATION (FIXED DELAY & ENDPOINTS)
         // =======================================================================
         stage('6. Verify Deployment') {
             steps {
                 echo 'Verifying services are running and accessible via host ports...'
                 
-                // Use PING command for a reliable 5-second delay on Windows
-                bat 'ping 1.1.1.1 -n 6 > nul' 
+                // FIX: Increase delay to 10 seconds for service startup reliability
+                bat 'ping 1.1.1.1 -n 11 > nul' 
                 
-                // FIX: Switch to the native PowerShell shell for reliable HTTP calls
+                // Use PowerShell for reliable HTTP verification on Windows
                 powershell '''
-                    Write-Host "Testing User Service Health:"
-                    # Invoke-WebRequest returns status code 200 on success
-                    Invoke-WebRequest -Uri "http://localhost:8081/health" -Method GET | Out-Null
+                    Write-Host "Testing User Service Root (Health Check /):"
+                    # Root endpoint now serves as the basic health check
+                    Invoke-WebRequest -Uri "http://localhost:8081/" -Method GET | Out-Null
                     
-                    Write-Host "Testing User Service Endpoint:"
-                    # Get the actual JSON content from the User endpoint
-                    Invoke-WebRequest -Uri "http://localhost:8081/users/123" -Method GET
+                    Write-Host "Testing User Service /users Endpoint:"
+                    # New endpoint path
+                    Invoke-WebRequest -Uri "http://localhost:8081/users" -Method GET
                     
-                    Write-Host "Testing Order Service Health:"
-                    Invoke-WebRequest -Uri "http://localhost:8082/health" -Method GET | Out-Null
+                    Write-Host "Testing Order Service Root (Health Check /):"
+                    Invoke-WebRequest -Uri "http://localhost:8082/" -Method GET | Out-Null
                     
-                    Write-Host "Testing Order Service Endpoint:"
-                    # Get the actual JSON content from the Order endpoint
-                    Invoke-WebRequest -Uri "http://localhost:8082/orders/456" -Method GET
+                    Write-Host "Testing Order Service /orders Endpoint:"
+                    # New endpoint path
+                    Invoke-WebRequest -Uri "http://localhost:8082/orders" -Method GET
                     
                     Write-Host "Deployment verification successful! Services are running."
                 '''

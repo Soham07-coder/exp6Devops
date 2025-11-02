@@ -1,20 +1,26 @@
-# Stage 1: Build the Application
-FROM node:18-alpine AS builder
+# Stage 1: Build (Installs dependencies)
+FROM node:20-alpine AS builder
 
-# Set the working directory inside the container
 WORKDIR /app
+
+# Copy package.json and install dependencies
 COPY package*.json ./
 RUN npm install
-COPY . .
 
-# Stage 2: Define the runtime image
-FROM node:18-alpine
+# Copy application source code
+COPY server.js .
+
+# Stage 2: Production (Final minimal image)
+FROM node:20-alpine
 
 WORKDIR /app
-COPY --from=builder /app .
 
-# Expose the port the application listens on (defined in server.js)
-EXPOSE 3002
+# Copy only the installed dependencies and source code from the build stage
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/server.js .
 
-# Command to run the application when the container starts
-CMD ["npm", "start"]
+# Expose the correct port
+EXPOSE 3001 
+
+# Define the command to run your application
+CMD [ "node", "server.js" ]
