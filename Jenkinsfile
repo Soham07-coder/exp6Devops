@@ -120,22 +120,28 @@ pipeline {
             steps {
                 echo 'Verifying services are running and accessible via host ports...'
                 
-                // FIX: Use PING command for a reliable 5-second delay on Windows
-                // Pings an invalid address (-n 6 means 5 pings + the initial attempt, which takes ~5 seconds)
+                // Use PING command for a reliable 5-second delay on Windows
                 bat 'ping 1.1.1.1 -n 6 > nul' 
                 
-                // The rest of the verification remains the same
-                echo 'Testing User Service Health:'
-                bat "curl -s http://localhost:${USER_PORT}/health"
-                echo 'Testing User Service Endpoint:'
-                bat "curl -s http://localhost:${USER_PORT}/users/123"
-                
-                echo 'Testing Order Service Health:'
-                bat "curl -s http://localhost:${ORDER_PORT}/health"
-                echo 'Testing Order Service Endpoint:'
-                bat "curl -s http://localhost:${ORDER_PORT}/orders/456"
-
-                echo 'Deployment verification successful! Services are running.'
+                // FIX: Switch to the native PowerShell shell for reliable HTTP calls
+                powershell '''
+                    Write-Host "Testing User Service Health:"
+                    # Invoke-WebRequest returns status code 200 on success
+                    Invoke-WebRequest -Uri "http://localhost:8081/health" -Method GET | Out-Null
+                    
+                    Write-Host "Testing User Service Endpoint:"
+                    # Get the actual JSON content from the User endpoint
+                    Invoke-WebRequest -Uri "http://localhost:8081/users/123" -Method GET
+                    
+                    Write-Host "Testing Order Service Health:"
+                    Invoke-WebRequest -Uri "http://localhost:8082/health" -Method GET | Out-Null
+                    
+                    Write-Host "Testing Order Service Endpoint:"
+                    # Get the actual JSON content from the Order endpoint
+                    Invoke-WebRequest -Uri "http://localhost:8082/orders/456" -Method GET
+                    
+                    Write-Host "Deployment verification successful! Services are running."
+                '''
             }
         }
     }
