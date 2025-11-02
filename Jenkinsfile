@@ -83,11 +83,26 @@ pipeline {
             steps {
                 echo 'Deploying containers to target environment (Jenkins Host)...'
                 
-                // FIX: Use || REM in Batch to ignore cleanup errors when container doesn't exist
-                bat 'docker stop user-app || REM'
-                bat 'docker rm user-app || REM'
-                bat 'docker stop order-app || REM'
-                bat 'docker rm order-app || REM'
+                // FIX: Use script block with try/catch to safely ignore cleanup errors on Windows
+                script {
+                    echo 'Attempting to clean up old containers...'
+                    
+                    // Cleanup User Service
+                    try {
+                        bat 'docker stop user-app'
+                        bat 'docker rm user-app'
+                    } catch (Exception ignored) {
+                        echo 'User service container not found, continuing...'
+                    }
+                    
+                    // Cleanup Order Service
+                    try {
+                        bat 'docker stop order-app'
+                        bat 'docker rm order-app'
+                    } catch (Exception ignored) {
+                        echo 'Order service container not found, continuing...'
+                    }
+                }
                 
                 // 1. Deploy User Service
                 bat "docker run -d --name user-app -p ${USER_PORT}:8081 ${USER_REPO}:${env.BUILD_NUMBER}"
@@ -98,7 +113,6 @@ pipeline {
                 echo "Order Service deployed and running on host port ${ORDER_PORT}"
             }
         }
-        
         // =======================================================================
         // VERIFICATION
         // =======================================================================
