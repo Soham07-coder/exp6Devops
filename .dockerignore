@@ -1,0 +1,7 @@
+# Ignore modules that will be installed inside the container
+**/node_modules
+# Ignore IDE and OS files
+.git
+.gitignore
+.vscode
+npm-debug.log
