@@ -120,10 +120,11 @@ pipeline {
             steps {
                 echo 'Verifying services are running and accessible via host ports...'
                 
-                // Wait for services to start up (FIX: Changed sh to bat)
-                bat 'timeout /T 5 /NOBREAK' 
+                // FIX: Use PING command for a reliable 5-second delay on Windows
+                // Pings an invalid address (-n 6 means 5 pings + the initial attempt, which takes ~5 seconds)
+                bat 'ping 1.1.1.1 -n 6 > nul' 
                 
-                // NOTE: 'curl' is usually available on modern Windows, but if this fails, you may need to use 'powershell Invoke-WebRequest' instead.
+                // The rest of the verification remains the same
                 echo 'Testing User Service Health:'
                 bat "curl -s http://localhost:${USER_PORT}/health"
                 echo 'Testing User Service Endpoint:'
