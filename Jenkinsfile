@@ -83,18 +83,17 @@ pipeline {
             steps {
                 echo 'Deploying containers to target environment (Jenkins Host)...'
                 
-                // Stop and remove old containers (FIX: Changed sh to bat)
-                // Use || (OR) in DOS/Batch requires enclosing commands in a single string for bat step
-                bat 'docker stop user-app || true'
-                bat 'docker rm user-app || true'
-                bat 'docker stop order-app || true'
-                bat 'docker rm order-app || true'
+                // FIX: Use || REM in Batch to ignore cleanup errors when container doesn't exist
+                bat 'docker stop user-app || REM'
+                bat 'docker rm user-app || REM'
+                bat 'docker stop order-app || REM'
+                bat 'docker rm order-app || REM'
                 
-                // 1. Deploy User Service (FIX: Changed sh to bat)
+                // 1. Deploy User Service
                 bat "docker run -d --name user-app -p ${USER_PORT}:8081 ${USER_REPO}:${env.BUILD_NUMBER}"
                 echo "User Service deployed and running on host port ${USER_PORT}"
                 
-                // 2. Deploy Order Service (FIX: Changed sh to bat)
+                // 2. Deploy Order Service
                 bat "docker run -d --name order-app -p ${ORDER_PORT}:8082 ${ORDER_REPO}:${env.BUILD_NUMBER}"
                 echo "Order Service deployed and running on host port ${ORDER_PORT}"
             }
